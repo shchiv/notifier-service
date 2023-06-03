@@ -26,8 +26,8 @@ notifications (**req4: horizontal scalability**).
 
 ### Start configuration:
 - two notification handlers with `nightmare` mode, a possible delay of 500-1000 ms, and status code 500, with a probability about 33% of one of the assaults will be executed.
-- one notification handler will start with `nightmare` mode, with the same config as the two above have, but after 1 minute mode will be automatically changed to `hell` and during the next 3 minutes each request will be declined a 500 status code, after that everything will be backed to the previous state, as before `nightmare` mode will continue work.
-- one notification handler without any modes, so it will work without expected delays or exceptions
+- one notification handler will be looped by two modes, starting with a `nightmare` - which will last 1 minute, switch to `hell` - which will last 3 minutes, and return to the nightmare again, so these modes will change each other and again and again.
+- one notification handler without any modes, so it will work without expected delays or exceptions.
 
 To be sure that external customer issues are not affecting the performance,
 we will start a few instances (described in [Start configuration section](#Start configuration)),
