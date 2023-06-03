@@ -1,0 +1,26 @@
+#!/usr/bin/env sh
+
+DOCKER_BUILDKIT=1
+COMPOSE_DOCKER_CLI_BUILD=1
+
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose-kafka.yml -f docker-compose-monitor.yml"
+#COMPOSE_FILES="-f docker-compose.yml -f docker-compose-monitor.yml"
+#COMPOSE_FILES="-f docker-compose.yml -f docker-compose-kafka.yml"
+#COMPOSE_FILES="-f docker-compose.yml"
+#COMPOSE_FILES="-f docker-compose-monitor.yml -f docker-compose-kafka.yml"
+#COMPOSE_FILES="-f docker-compose-monitor.yml"
+ENV_FILE=".env"
+
+trap ctrl_c INT
+
+CMD="docker compose ${COMPOSE_FILES} --env-file ${ENV_FILE}"
+
+function ctrl_c() {
+        echo "** Trapped CTRL-C"
+        eval "${CMD} down -v"
+        docker rmi $(docker images --filter=reference='notifier*' -aq)
+}
+
+CMD_UP="${CMD} up"
+echo "${CMD_UP}"
+eval "${CMD_UP}"

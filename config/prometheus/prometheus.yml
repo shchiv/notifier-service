@@ -1,0 +1,96 @@
+# https://mfarache.github.io/mfarache/Monitoring-docker-containers-grafana/
+# https://github.com/vegasbrianc/prometheus
+global:
+  scrape_interval: 5s
+
+  # Attach these labels to any time series or alerts when communicating with
+  # external systems (federation, remote storage, Alertmanager).
+  external_labels:
+    monitor: 'notifier-monitor'
+
+scrape_configs:
+  - job_name: 'kafka-producer'
+#    static_configs:
+#      - targets:
+#          - 'host.docker.internal:1234'
+##        labels:
+##          env: 'notifier-lab'
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        filters:
+          - name: label
+            values:
+              - "com.docker.compose.service=producer"
+
+  - job_name: 'kafka-consumer'
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        filters:
+#          - name: network
+#            values: ["notifier_kafka_network"]
+          - name: label
+            values:
+              - "com.docker.compose.service=consumer"
+
+  - job_name: 'notifier'
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        filters:
+          - name: label
+            values:
+              - "com.docker.compose.service=notifier"
+
+  - job_name: "catcher"
+    scrape_interval: 5s
+
+    # https://stackoverflow.com/questions/70803245/prometheus-service-discovery-with-docker-compose
+    docker_sd_configs:
+    # You can also use http/https to connect to the Docker daemon.
+      - host: unix:///var/run/docker.sock
+        filters:
+          - name: label
+            values:
+              - "com.docker.compose.service=catcher"
+
+  - job_name: "catcher-nightmare"
+    scrape_interval: 5s
+
+    # https://stackoverflow.com/questions/70803245/prometheus-service-discovery-with-docker-compose
+    docker_sd_configs:
+      # You can also use http/https to connect to the Docker daemon.
+      - host: unix:///var/run/docker.sock
+        filters:
+          - name: label
+            values:
+              - "com.docker.compose.service=catcher-nightmare"
+
+  - job_name: "catcher-hell"
+    scrape_interval: 5s
+
+    # https://stackoverflow.com/questions/70803245/prometheus-service-discovery-with-docker-compose
+    docker_sd_configs:
+      # You can also use http/https to connect to the Docker daemon.
+      - host: unix:///var/run/docker.sock
+        filters:
+          - name: label
+            values:
+              - "com.docker.compose.service=catcher-hell"
+
+  - job_name: 'zookeeper'
+    static_configs:
+      - targets:
+          - 'zoo1:1234'
+
+  - job_name: 'kafka'
+    static_configs:
+      - targets:
+          - 'kafka1:1234'
+          - 'kafka2:1234'
+          - 'kafka3:1234'
+
+  - job_name: 'kafka-lag-exporter'
+    static_configs:
+      - targets:
+          - 'kafka-lag-exporter:1234'
+        labels:
+          env: 'notifier-lab'

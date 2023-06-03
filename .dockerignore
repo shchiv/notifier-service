@@ -1,0 +1,24 @@
+# Binaries
+bin/
+
+# Compose config directory
+config/
+
+
+# Exclude "build-time" ignore files and config specific files
+.dockerignore
+.gitignore
+Dockerfile
+docker-compose*.yml
+.env
+run.it
+
+# Exclude git history and configuration.
+.gitignore
+
+# Exclude IDEAs
+.idea
+.vscode
+
+# Text files
+README.md

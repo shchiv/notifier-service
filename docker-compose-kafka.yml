@@ -1,0 +1,210 @@
+version: '3.9'
+
+# https://medium.com/@rinu.gour123/kafka-docker-steps-to-run-apache-kafka-using-docker-1645e85acd50
+# https://github.com/confluentinc/cp-demo
+# https://www.howtogeek.com/devops/how-to-simplify-docker-compose-files-with-yaml-anchors-and-extensions/
+services:
+  zoo:
+    image: confluentinc/cp-zookeeper:${KAFKA_VERSION}
+    restart: always
+    hostname: zoo1
+    container_name: zoo1
+    healthcheck:
+      test: echo srvr | nc zoo1 2181 || exit 1
+      retries: 10
+      interval: 10s
+      start_period: 20s
+    ports:
+      - "8181:8080"
+      - "2181:2181"
+      - "1234"
+    environment:
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_LOG4J_ROOT_LOGLEVEL: ${ZOOKEEPER_LOGLEVEL}
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_SERVERS: zoo1:2888:3888
+
+      EXTRA_ARGS: -javaagent:/usr/share/jmx_exporter/jmx_prometheus_javaagent-0.18.0.jar=1234:/usr/share/jmx_exporter/zookeeper.yml
+    volumes:
+      - ./config/jmx-exporter:/usr/share/jmx_exporter/
+    networks:
+      - kafka_network
+
+  kafka1: &kafka-service
+    image: confluentinc/cp-kafka:${KAFKA_VERSION}
+    restart: always
+    hostname: kafka1
+    container_name: kafka1
+    healthcheck: &kafka-service_healthcheck
+      #test: curl --user superUser:superUser -fail --silent --insecure https://kafka1:8091/kafka/v3/clusters/ --output /dev/null || exit 1
+      test: nc -z localhost 9092 || exit -1
+      interval: 10s
+      retries: 25
+      start_period: 20s
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+      - "1234"
+    environment: &kafka-service_environment
+      KAFKA_LOG4J_ROOT_LOGLEVEL: ${KAFKA_LOGLEVEL}
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:19092,EXTERNAL://${DOCKER_HOST_IP:-127.0.0.1}:9092,DOCKER://host.docker.internal:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,DOCKER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_ZOOKEEPER_CONNECT: "${ZOOKEEPER_SERVER}"
+      KAFKA_BROKER_ID: 1
+      KAFKA_LOG4J_LOGGERS: "kafka.controller=${KAFKA_LOGLEVEL},kafka.producer.async.DefaultEventHandler=${KAFKA_LOGLEVEL},state.change.logger=${KAFKA_LOGLEVEL}"
+      KAFKA_AUTHORIZER_CLASS_NAME: kafka.security.authorizer.AclAuthorizer
+      KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+      KAFKA_OPTS: -javaagent:/usr/share/jmx_exporter/jmx_prometheus_javaagent-0.18.0.jar=1234:/usr/share/jmx_exporter/kafka-broker.yml
+    volumes:
+      - ./config/jmx-exporter:/usr/share/jmx_exporter/
+    depends_on:
+      zoo:
+        condition: service_healthy
+    networks:
+      - kafka_network
+
+  kafka2:
+    <<: *kafka-service
+    hostname: kafka2
+    container_name: kafka2
+    healthcheck:
+      <<: *kafka-service_healthcheck
+      test: nc -z localhost 9093 || exit -1
+    ports:
+      - "9093:9093"
+      - "29093:29093"
+      - "1234"
+    environment:
+      <<: *kafka-service_environment
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka2:19093,EXTERNAL://${DOCKER_HOST_IP:-127.0.0.1}:9093,DOCKER://host.docker.internal:29093
+      KAFKA_BROKER_ID: 2
+
+
+  kafka3:
+    <<: *kafka-service
+    hostname: kafka3
+    container_name: kafka3
+    healthcheck:
+      <<: *kafka-service_healthcheck
+      test: nc -z localhost 9094 || exit -1
+    ports:
+      - "9094:9094"
+      - "29094:29094"
+      - "1234"
+    environment:
+      <<: *kafka-service_environment
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka3:19094,EXTERNAL://${DOCKER_HOST_IP:-127.0.0.1}:9094,DOCKER://host.docker.internal:29094
+      KAFKA_BROKER_ID: 3
+
+  # This "container" is a workaround to pre-create topics for the Kafka Music application
+  # until we have a more elegant way to do that.
+  kafka-topic-creator:
+    image: confluentinc/cp-kafka:${KAFKA_VERSION}
+    hostname: kafka-topic-creator
+    container_name: kafka-topic-creator
+    healthcheck:
+      test: kafka-topics --bootstrap-server kafka1:29092  --describe --topic "${KAFKA_TOPIC}"
+      interval: 10s
+      retries: 10
+      start_period: 20s
+    command: "bash -c 'kafka-topics --create --topic ${KAFKA_TOPIC} --if-not-exists \
+        --bootstrap-server kafka1:29092 --partitions 3 --replication-factor 3 && \
+        sleep infinity'"
+    environment:
+      # The following settings are listed here only to satisfy the image's requirements,
+      # hence this container will not start a broker.
+      KAFKA_BROKER_ID: ignored
+      KAFKA_ZOOKEEPER_CONNECT: ignored
+    depends_on:
+      kafka1:
+        condition: service_healthy
+    networks:
+      - kafka_network
+
+#  zoo-ui:
+#    image: elkozmon/zoonavigator:1.1.2
+#    container_name: zoo-ui
+#    ports:
+#      - "8000:8000"
+#    environment:
+#      HTTP_PORT: 8000
+#      AUTO_CONNECT_CONNECTION_ID: "LOCALZK"
+#      CONNECTION_LOCALZK_NAME: "Local ZooKeeper"
+#      CONNECTION_LOCALZK_CONN: "zoo1:2181"
+#    depends_on:
+#      zoo:
+#        condition: service_healthy
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui
+    restart: always
+    hostname: kafka-ui
+    container_name: kafka-ui
+    healthcheck:
+      test: nc localhost 8080
+      interval: 20s
+      retries: 10
+      start_period: 20s
+    ports:
+      - "8080:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=notifier-lab
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka1:29092
+      - KAFKA_CLUSTERS_0_READONLY=true
+    depends_on:
+      kafka1:
+        condition: service_healthy
+    networks:
+      - kafka_network
+
+  producer:
+    build:
+      context: .
+      target: kafka-producer
+    deploy:
+      replicas: 4
+      labels:
+        - prometheus-job=kafka-producer
+    command:  producer -r 3 --topic ${KAFKA_TOPIC} --zookeeper ${ZOOKEEPER_SERVER}
+    cap_add:
+      - SYS_ADMIN
+    ports:
+      - "1234"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      kafka-topic-creator:
+        condition: service_healthy
+    networks:
+      - kafka_network
+
+  consumer:
+    build:
+      context: .
+      target: kafka-consumer
+    deploy:
+      replicas: 4
+      labels:
+        - prometheus-job=kafka-producer
+    command: ./consumer --topic ${KAFKA_TOPIC} --zookeeper ${ZOOKEEPER_SERVER} --db-connection postgres://${DB_USER}:${DB_PASSWORD}@host.docker.internal/${DB_NAME}?sslmode=disable
+#    entrypoint: "sh -c `tail -f /dev/null`"
+    cap_add:
+      - SYS_ADMIN
+    ports:
+      - "1234"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      kafka-topic-creator:
+        condition: service_healthy
+    networks:
+      - general_network
+      - kafka_network
+
+networks:
+  general_network:
+  kafka_network:

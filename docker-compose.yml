@@ -1,0 +1,138 @@
+version: '3.9'
+services:
+  db:
+    image: "postgres:15-alpine"
+    container_name: db
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./config/db/scripts:/docker-entrypoint-initdb.d
+
+      # To create a new dump use (if no data required add --no-data):
+      #     PGPASSWORD=password pg_dump -h localhost -d local -U user --compress=9 > events-`date +%F`-dump.sql.gz
+      #
+
+      # Uncomment to restore DB from dump
+#      - ./config/db:/docker-entrypoint-initdb.d
+    networks:
+      - general_network
+
+  notifier:
+    build:
+      context: .
+      target: notifier
+    deploy:
+      replicas: 1
+    command: notifier --threads=5 --sleep=5 --db-connection postgres://${DB_USER}:${DB_PASSWORD}@host.docker.internal/${DB_NAME}?sslmode=disable
+    environment:
+      CHAOS_MONKEY_ENABLED: ${CHAOS_CLIENT_ENABLED}
+      CHAOS_MONKEY_PRIMARY_MODE: ${CHAOS_CLIENT_PRIMARY_MODE}
+      CHAOS_MONKEY_LATENCY: ${CHAOS_CLIENT_LATENCY}
+      CHAOS_MONKEY_LATENCY_MIN_TIME: ${CHAOS_CLIENT_LATENCY_MIN_TIME}
+      CHAOS_MONKEY_LATENCY_MAX_TIME: ${CHAOS_CLIENT_LATENCY_MAX_TIME}
+      CHAOS_MONKEY_EXCEPTION: ${CHAOS_CLIENT_EXCEPTION}
+    ports:
+      - "1234"
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - general_network
+
+  catcher-nightmare:
+    build:
+      context: .
+      target: catcher
+    command: catcher --port=${CATCHER_PORT} --db-connection postgres://${DB_USER}:${DB_PASSWORD}@host.docker.internal/${DB_NAME}?sslmode=disable
+    deploy:
+      replicas: 2
+      labels:
+        - prometheus-job=catcher
+    ports:
+      - "${CATCHER_PORT}"
+    environment:
+      CHAOS_MONKEY_ENABLED: ${CHAOS_CLIENT_ENABLED}
+      CHAOS_MONKEY_PRIMARY_MODE: ${CHAOS_CLIENT_PRIMARY_MODE}
+      CHAOS_MONKEY_LATENCY: ${CHAOS_CLIENT_LATENCY}
+      CHAOS_MONKEY_LATENCY_MIN_TIME: ${CHAOS_CLIENT_LATENCY_MIN_TIME}
+      CHAOS_MONKEY_LATENCY_MAX_TIME: ${CHAOS_CLIENT_LATENCY_MAX_TIME}
+      CHAOS_MONKEY_EXCEPTION: ${CHAOS_CLIENT_EXCEPTION}
+      CHAOS_MONKEY_DELAY_START: 0
+      CHAOS_MONKEY_DURATION: 0
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - general_network
+
+  catcher-hell:
+    build:
+      context: .
+      target: catcher
+    command: catcher --port=${CATCHER_PORT} --db-connection postgres://${DB_USER}:${DB_PASSWORD}@host.docker.internal/${DB_NAME}?sslmode=disable
+    deploy:
+      replicas: 1
+      labels:
+        - prometheus-job=catcher
+    ports:
+      - "${CATCHER_PORT}"
+    environment:
+      CHAOS_MONKEY_ENABLED: ${CHAOS_CLIENT_ENABLED}
+      CHAOS_MONKEY_PRIMARY_MODE: nightmare
+      CHAOS_MONKEY_SECONDARY_MODE: hell
+      CHAOS_MONKEY_LATENCY: ${CHAOS_CLIENT_LATENCY}
+      CHAOS_MONKEY_LATENCY_MIN_TIME: ${CHAOS_CLIENT_LATENCY_MIN_TIME}
+      CHAOS_MONKEY_LATENCY_MAX_TIME: ${CHAOS_CLIENT_LATENCY_MAX_TIME}
+      CHAOS_MONKEY_EXCEPTION: ${CHAOS_CLIENT_EXCEPTION}
+      CHAOS_MONKEY_DELAY_START: 1
+      CHAOS_MONKEY_DURATION: 1
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - general_network
+
+  catcher:
+    build:
+      context: .
+      target: catcher
+    command: catcher --port=${CATCHER_PORT} --db-connection postgres://${DB_USER}:${DB_PASSWORD}@host.docker.internal/${DB_NAME}?sslmode=disable
+    deploy:
+      replicas: 1
+      labels:
+        - prometheus-job=catcher
+    ports:
+      - "${CATCHER_PORT}"
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - general_network
+
+networks:
+  general_network:

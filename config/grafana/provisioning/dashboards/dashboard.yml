@@ -1,0 +1,10 @@
+apiVersion: 1
+
+providers:
+  - name: general # A uniquely identifiable name for the provider
+    folder: '' # leave empty for general folder
+    type: file
+    editable: true
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/provisioning/dashboards

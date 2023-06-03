@@ -1,0 +1,66 @@
+version: '3.9'
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    user: root # must be root, due to the default permission on docker.sock (for non-root it should be 766)
+    restart: always
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus:/etc/prometheus
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      monit_network:
+      general_network:
+      kafka_network:
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: always
+    environment:
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning/
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      monit_network:
+
+  kafka-lag-exporter:
+    image: lightbend/kafka-lag-exporter:0.6.8
+    hostname: kafka-lag-exporter
+    restart: always
+    healthcheck:
+      test: curl -X GET -g http://localhost:1234/metrics?name[]=kafka_consumergroup_poll_time_ms
+      retries: 10
+      interval: 10s
+      start_period: 20s
+    environment:
+      - ROOT_LOG_LEVEL=WARN
+    ports:
+      - 1234:1234
+    volumes:
+      - ./config/kafka-lag-exporter/:/opt/docker/conf/
+    depends_on:
+      kafka-topic-creator:
+        condition: service_healthy
+    networks:
+      kafka_network:
+      monit_network:
+
+networks:
+  general_network:
+  kafka_network:
+  monit_network:

@@ -1,0 +1,618 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "TmKt7CbTk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 40,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TmKt7CbTk"
+          },
+          "editorMode": "code",
+          "expr": "avg by (mode) (100*1000*notifier_retried_events_total{customer_id=~\"${customer}\",mode=\"nightmare\"}/notifier_sent_events_total{customer_id=~\"${customer}\",mode=\"nightmare\"})",
+          "legendFormat": "Nightmare: Fail Rate",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TmKt7CbTk"
+          },
+          "editorMode": "code",
+          "expr": "avg by (mode) (100*1000*notifier_retried_events_total{customer_id=~\"${customer}\",mode=\"hell\"}/notifier_sent_events_total{customer_id=~\"${customer}\",mode=\"hell\"})",
+          "hide": false,
+          "legendFormat": "Hell: Fail Rate",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TmKt7CbTk"
+          },
+          "editorMode": "code",
+          "expr": "avg by (mode) (rate(notifier_delivery_lag_sum{customer_id=~\"${customer}\",mode=\"nightmare\"}[$__rate_interval]) / rate(notifier_delivery_lag_count{customer_id=~\"${customer}\",mode=\"nightmare\"}[$__rate_interval])) ",
+          "hide": false,
+          "legendFormat": "Nightmare: Delivery Lag",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TmKt7CbTk"
+          },
+          "editorMode": "code",
+          "expr": "avg by (mode) (rate(notifier_delivery_lag_sum{customer_id=~\"${customer}\",mode=\"hell\"}[$__rate_interval]) / rate(notifier_delivery_lag_count{customer_id=~\"${customer}\",mode=\"hell\"}[$__rate_interval])) ",
+          "hide": false,
+          "legendFormat": "Hell: Delivery Lag",
+          "range": true,
+          "refId": "D"
+        }
+      ],
+      "title": "Prove",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "TmKt7CbTk"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 29,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "#### Context:\n`Unaffected performance` - potential performance degradation of one or more notification handlers must not affect the performance of the rest notification handlers.\n\n#### Modes description:\n- `Nightmare` mode, which provides about 33% of probability of delay or exception (500 status code) will be returned.\n- `Hell` mode, which always returns an exception (500 status code).\n\n#### Start configuration:\n- two notification handlers with `nightmare` mode, a possible delay of 500-1000 ms, and status code 500, with a probability about 33% of one of the assaults will be executed.\n- one notification handler will be looped by two modes, starting with a `nightmare` - which will last 1 minute, switch to `hell` - which will last 3 minutes, and return to the nightmare again, so these modes will change each other and again and again.\n- one notification handler without any modes, so it will work without expected delays or exceptions.\n\n#### Prove:\n- on the `Prove` panel, you can see that `Hell: Delivery Lag` growing while we can't post the event, but after `hell` stopped, it disappeared, and `Hell: Fail Rate` grows a bit and then keep the same (we have looped modes which keep it almost the same), both factors means that `hell` stopped and other modes are not affected.\n- on one of `Number of delivered` panels, which is under `hell` mode, for some period of time, the count of delivered events remains unchanged.\n- on one of `Customer Delivered/Failed` panels, which is under `hell` mode, you can see 100% of failed-to-deliver attempts.\n- on one of `Customer Delivery Lag` panels, which is under `hell` mode, missed any values, which means that there are no delivered events and we can't calculate the lag.\n- on the `Total Rates` panel we can see that only for one customer the count of delivered events remains unchanged, others keep working and their count of delivered events is still rising.\n",
+        "mode": "markdown"
+      },
+      "pluginVersion": "9.4.7",
+      "title": "Unaffected Performance: how to check",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "TmKt7CbTk"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "scheme",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 3,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 9
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "9.4.7",
+      "repeat": "customer",
+      "repeatDirection": "v",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TmKt7CbTk"
+          },
+          "editorMode": "code",
+          "expr": "sum by (customer_id) (notifier_delivery_lag_count{customer_id=~\"${customer}\",mode=\"\"})",
+          "legendFormat": "Number of delivered",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Customer: ${customer}",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "TmKt7CbTk"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "scheme",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 3,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 9
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "repeat": "customer",
+      "repeatDirection": "v",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TmKt7CbTk"
+          },
+          "editorMode": "code",
+          "expr": "avg by (customer_id) (rate(notifier_delivery_lag_sum{customer_id=~\"${customer}\",mode=\"\"}[$__rate_interval]) / rate(notifier_delivery_lag_count{customer_id=~\"${customer}\",mode=\"\"}[$__rate_interval])) \n",
+          "legendFormat": "Delivery Lag",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Customer: ${customer}",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "TmKt7CbTk"
+      },
+      "description": "Per customer, number of notifications delivered/processed by customer's notification callback(catcher)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 9
+      },
+      "id": 12,
+      "options": {
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true,
+          "values": []
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "9.4.7",
+      "repeat": "customer",
+      "repeatDirection": "v",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TmKt7CbTk"
+          },
+          "editorMode": "code",
+          "expr": "sum by(customer_id) (rate(notifier_posted_events_total{customer_id=~\"${customer}\"}[$__rate_interval]))",
+          "legendFormat": "Delivered",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TmKt7CbTk"
+          },
+          "editorMode": "code",
+          "expr": "sum by(customer_id) (rate(notifier_retried_events_total{customer_id=~\"${customer}\"}[$__rate_interval]))",
+          "hide": false,
+          "legendFormat": "Failed to deliver",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Customer: ${customer}",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "TmKt7CbTk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TmKt7CbTk"
+          },
+          "editorMode": "code",
+          "expr": "sum by (customer_id) (notifier_delivery_lag_count{customer_id=~\"${customer}\",mode=\"\"})",
+          "legendFormat": "Delivered {{customer_id}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TmKt7CbTk"
+          },
+          "editorMode": "code",
+          "expr": "sum by (customer_id) (consumer_ingested_events_total{customer_id=~\"${customer}\"})",
+          "hide": false,
+          "legendFormat": "Ingested {{customer_id}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Total Rates",
+      "transformations": [],
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "revision": 1,
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "TmKt7CbTk"
+        },
+        "definition": "label_values(customer_id)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "customer",
+        "options": [],
+        "query": {
+          "query": "label_values(customer_id)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Events Unaffected Performance",
+  "uid": "8Bmq-7L4u",
+  "version": 1,
+  "weekStart": ""
+}
